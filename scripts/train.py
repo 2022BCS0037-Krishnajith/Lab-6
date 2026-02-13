@@ -8,10 +8,10 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 
 # Ensure output directory exists
-os.makedirs("output", exist_ok=True)
+os.makedirs("app/artifacts", exist_ok=True)
 
 # 1. Load the dataset
-data = pd.read_csv("dataset/winequality-red.csv", sep=";")
+data = pd.read_csv("dataset/winequality.csv", sep=";")
 
 # 2. Feature selection
 X = data.drop("quality", axis=1)
@@ -43,7 +43,7 @@ print(f"MSE: {mse}")
 print(f"R2 Score: {r2}")
 
 # 5. Save trained model
-joblib.dump(model, "output/model.pkl")
+joblib.dump(model, "app/artifacts/model.pkl")
 
 # 5. Save evaluation metrics to JSON
 results = {
@@ -51,5 +51,5 @@ results = {
     "R2": r2
 }
 
-with open("output/results.json", "w") as f:
+with open("app/artifacts/metrics.json", "w") as f:
     json.dump(results, f, indent=4)
