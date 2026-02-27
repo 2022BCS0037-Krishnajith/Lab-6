@@ -36,7 +36,7 @@ pipeline {
                 script {
                     def response = sh(
                         script: """
-                        curl -s -X POST http://localhost:8000/predict \
+                        curl -s -X POST http://host.docker.internal:8000/predict \
                         -H "Content-Type: application/json" \
                         -d @test_valid.json
                         """,
@@ -57,7 +57,7 @@ pipeline {
                 script {
                     def response = sh(
                         script: """
-                        curl -s -X POST http://localhost:8000/predict \
+                        curl -s -X POST http://host.docker.internal:8000/predict \
                         -H "Content-Type: application/json" \
                         -d @test_invalid.json
                         """,
