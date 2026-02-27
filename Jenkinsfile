@@ -15,13 +15,14 @@ pipeline {
             }
         }
 
-        stage('Run Container') {
-            steps {
-                sh '''
-                docker run -d -p 8000:8000 --name $CONTAINER_NAME $IMAGE_NAME
-                '''
-            }
-        }
+       stage('Run Container') {
+    steps {
+        sh '''
+        docker rm -f $CONTAINER_NAME || true
+        docker run -d -p 8000:8000 --name $CONTAINER_NAME $IMAGE_NAME
+        '''
+    }
+}
 
         stage('Wait for Service Readiness') {
             steps {
