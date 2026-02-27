@@ -4,7 +4,6 @@ pipeline {
     environment {
         IMAGE_NAME = "kj3748/lab6-model"
         CONTAINER_NAME = "wine_container_test"
-        PORT = "8000"
     }
 
     stages {
@@ -15,14 +14,14 @@ pipeline {
             }
         }
 
-       stage('Run Container') {
-    steps {
-        sh '''
-        docker rm -f $CONTAINER_NAME || true
-        docker run -d -p 8000:8000 --name $CONTAINER_NAME $IMAGE_NAME
-        '''
-    }
-}
+        stage('Run Container') {
+            steps {
+                sh '''
+                docker rm -f $CONTAINER_NAME || true
+                docker run -d --network jenkins-net --name $CONTAINER_NAME $IMAGE_NAME
+                '''
+            }
+        }
 
         stage('Wait for Service Readiness') {
             steps {
@@ -37,7 +36,7 @@ pipeline {
                 script {
                     def response = sh(
                         script: """
-                        curl -s -X POST http://host.docker.internal:8000/predict \
+                        curl -s -X POST http://wine_container_test:8000/predict \
                         -H "Content-Type: application/json" \
                         -d @test_valid.json
                         """,
@@ -58,7 +57,7 @@ pipeline {
                 script {
                     def response = sh(
                         script: """
-                        curl -s -X POST http://host.docker.internal:8000/predict \
+                        curl -s -X POST http://wine_container_test:8000/predict \
                         -H "Content-Type: application/json" \
                         -d @test_invalid.json
                         """,
