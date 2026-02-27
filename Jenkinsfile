@@ -32,46 +32,60 @@ pipeline {
         }
 
         stage('Send Valid Inference Request') {
-            steps {
-                script {
-                    def response = sh(
-                        script: """
-                        curl -s -X POST http://wine_container_test:8000/predict \
-                        -H "Content-Type: application/json" \
-                        -d @test_valid.json
-                        """,
-                        returnStdout: true
-                    ).trim()
+    steps {
+        script {
 
-                    echo "Valid Response: ${response}"
+            def container_ip = sh(
+                script: "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $CONTAINER_NAME",
+                returnStdout: true
+            ).trim()
 
-                    if (!response.contains("wine_quality")) {
-                        error("Valid inference test failed!")
-                    }
-                }
+            echo "Container IP: ${container_ip}"
+
+            def response = sh(
+                script: """
+                curl -s -X POST http://${container_ip}:8000/predict \
+                -H "Content-Type: application/json" \
+                -d @test_valid.json
+                """,
+                returnStdout: true
+            ).trim()
+
+            echo "Valid Response: ${response}"
+
+            if (!response.contains("wine_quality")) {
+                error("Valid inference test failed!")
             }
         }
+    }
+}
 
         stage('Send Invalid Request') {
-            steps {
-                script {
-                    def response = sh(
-                        script: """
-                        curl -s -X POST http://wine_container_test:8000/predict \
-                        -H "Content-Type: application/json" \
-                        -d @test_invalid.json
-                        """,
-                        returnStdout: true
-                    ).trim()
+    steps {
+        script {
 
-                    echo "Invalid Response: ${response}"
+            def container_ip = sh(
+                script: "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $CONTAINER_NAME",
+                returnStdout: true
+            ).trim()
 
-                    if (!response.contains("detail")) {
-                        error("Invalid input test failed!")
-                    }
-                }
+            def response = sh(
+                script: """
+                curl -s -X POST http://${container_ip}:8000/predict \
+                -H "Content-Type: application/json" \
+                -d @test_invalid.json
+                """,
+                returnStdout: true
+            ).trim()
+
+            echo "Invalid Response: ${response}"
+
+            if (!response.contains("detail")) {
+                error("Invalid input test failed!")
             }
         }
+    }
+}
 
         stage('Stop Container') {
             steps {
