@@ -36,9 +36,9 @@ pipeline {
         script {
 
             def container_ip = sh(
-                script: "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $CONTAINER_NAME",
-                returnStdout: true
-            ).trim()
+    script: "docker inspect -f '{{ .NetworkSettings.Networks.jenkins-net.IPAddress }}' $CONTAINER_NAME",
+    returnStdout: true
+).trim()
 
             echo "Container IP: ${container_ip}"
 
@@ -64,10 +64,10 @@ pipeline {
     steps {
         script {
 
-            def container_ip = sh(
-                script: "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $CONTAINER_NAME",
-                returnStdout: true
-            ).trim()
+           def container_ip = sh(
+    script: "docker inspect -f '{{ .NetworkSettings.Networks.jenkins-net.IPAddress }}' $CONTAINER_NAME",
+    returnStdout: true
+).trim()
 
             def response = sh(
                 script: """
