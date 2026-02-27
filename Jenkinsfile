@@ -2,84 +2,90 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "kj3748/lab6-model"
-        CONTAINER_NAME = "wine_container_test"
+        IMAGE = "kj3748/lab6-model:latest"
+        CONTAINER = "wine-test-container"
+        PORT = "8000"
     }
 
     stages {
 
         stage('Pull Image') {
             steps {
-                sh 'docker pull $IMAGE_NAME'
+                sh 'docker pull $IMAGE'
             }
         }
 
         stage('Run Container') {
             steps {
                 sh '''
-                docker rm -f $CONTAINER_NAME || true
-                docker run -d -p 8000:8000 --name $CONTAINER_NAME $IMAGE_NAME
+                docker rm -f $CONTAINER || true
+                docker run -d -p $PORT:8000 --name $CONTAINER $IMAGE
                 '''
             }
         }
 
-        stage('Wait for Service') {
+        stage('Wait for API Readiness') {
             steps {
-                script {
-                    sleep(10)
-                }
+                sh '''
+                timeout=30
+                until curl -s -o /dev/null -w "%{http_code}" http://host.docker.internal:$PORT/health | grep -q 200; do
+                    if [ $timeout -le- 0 ]; then
+                        echo "API did not start"
+                        exit 1
+                    fi
+                    sleep 2
+                    timeout=$((timeout-2))
+                done
+                echo "API is ready"
+                '''
             }
         }
 
-        stage('Send Valid Inference Request') {
+        stage('Valid Inference Test') {
             steps {
-                script {
-                    def response = sh(
-                        script: """
-                        curl -s -X POST http://host.docker.internal:8000/predict \
-                        -H "Content-Type: application/json" \
-                        -d @test_valid.json
-                        """,
-                        returnStdout: true
-                    ).trim()
+                sh '''
+                response=$(curl -s -X POST http://host.docker.internal:$PORT/predict \
+                -H "Content-Type: application/json" \
+                -d @test_valid.json)
 
-                    echo "Valid Response: ${response}"
+                echo "Valid Response: $response"
 
-                    if (!response.contains("wine_quality")) {
-                        error("Valid inference test failed!")
-                    }
-                }
+                echo $response | jq '.wine_quality' > /dev/null || exit 1
+                '''
             }
         }
 
-        stage('Send Invalid Request') {
+        stage('Invalid Input Test') {
             steps {
-                script {
-                    def response = sh(
-                        script: """
-                        curl -s -X POST http://host.docker.internal:8000/predict \
-                        -H "Content-Type: application/json" \
-                        -d @test_invalid.json
-                        """,
-                        returnStdout: true
-                    ).trim()
+                sh '''
+                status=$(curl -s -o /dev/null -w "%{http_code}" \
+                -X POST http://host.docker.internal:$PORT/predict \
+                -H "Content-Type: application/json" \
+                -d @test_invalid.json)
 
-                    echo "Invalid Response: ${response}"
+                if [ "$status" -eq 200 ]; then
+                    echo "Invalid input should not return 200"
+                    exit 1
+                fi
 
-                    if (!response.contains("detail")) {
-                        error("Invalid input test failed!")
-                    }
-                }
+                echo "Invalid input correctly rejected"
+                '''
             }
         }
 
         stage('Stop Container') {
             steps {
                 sh '''
-                docker stop $CONTAINER_NAME
-                docker rm $CONTAINER_NAME
+                docker stop $CONTAINER
+                docker rm $CONTAINER
                 '''
             }
+        }
+    }
+
+    post {
+        always {
+            sh 'docker rm -f $CONTAINER || true'
         }
     }
 }
