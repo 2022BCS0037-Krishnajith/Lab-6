@@ -1,4 +1,8 @@
 pandas
-joblib
 scikit-learn
+joblib
 numpy
+uvicorn
+fastapi
+pydantic
+flask
