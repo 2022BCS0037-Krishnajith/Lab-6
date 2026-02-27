@@ -4,7 +4,6 @@ import numpy as np
 
 app = Flask(__name__)
 
-# Load trained model
 model = joblib.load("app/artifacts/model.pkl")
 scaler = joblib.load("app/artifacts/scaler.pkl")
 

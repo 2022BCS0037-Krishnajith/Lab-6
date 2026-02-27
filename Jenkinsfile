@@ -27,15 +27,19 @@ pipeline {
         stage('Wait for API Readiness') {
             steps {
                 sh '''
+                echo "Waiting for API..."
                 timeout=30
-                until curl -s -o /dev/null -w "%{http_code}" http://host.docker.internal:$PORT/health | grep -q 200; do
-                    if [ $timeout -le- 0 ]; then
+
+                until curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/health | grep -q 200
+                do
+                    if [ "$timeout" -le 0 ]; then
                         echo "API did not start"
                         exit 1
                     fi
                     sleep 2
                     timeout=$((timeout-2))
                 done
+
                 echo "API is ready"
                 '''
             }
@@ -44,13 +48,16 @@ pipeline {
         stage('Valid Inference Test') {
             steps {
                 sh '''
-                response=$(curl -s -X POST http://host.docker.internal:$PORT/predict \
+                response=$(curl -s -X POST http://localhost:$PORT/predict \
                 -H "Content-Type: application/json" \
                 -d @tests/valid_input.json)
 
                 echo "Valid Response: $response"
 
-                echo $response | jq '.wine_quality' > /dev/null || exit 1
+                echo "$response" | grep -q "prediction" || {
+                    echo "Prediction field missing"
+                    exit 1
+                }
                 '''
             }
         }
@@ -59,7 +66,7 @@ pipeline {
             steps {
                 sh '''
                 status=$(curl -s -o /dev/null -w "%{http_code}" \
-                -X POST http://host.docker.internal:$PORT/predict \
+                -X POST http://localhost:$PORT/predict \
                 -H "Content-Type: application/json" \
                 -d @tests/invalid_input.json)
 
