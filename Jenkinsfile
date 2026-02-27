@@ -25,21 +25,31 @@ pipeline {
         }
 
         stage('Wait for API Readiness') {
-            steps {
-                sh '''
-                timeout=30
-                until curl -s -o /dev/null -w "%{http_code}" http://host.docker.internal:$PORT/health | grep -q 200; do
-                    if [ $timeout -le- 0 ]; then
-                        echo "API did not start"
-                        exit 1
-                    fi
-                    sleep 2
-                    timeout=$((timeout-2))
-                done
+    steps {
+        sh '''
+        echo "Waiting for API..."
+        timeout=30
+
+        while true
+        do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://$CONTAINER:$PORT/health)
+
+            if [ "$STATUS" = "200" ]; then
                 echo "API is ready"
-                '''
-            }
-        }
+                break
+            fi
+
+            if [ "$timeout" -le 0 ]; then
+                echo "API did not start"
+                exit 1
+            fi
+
+            sleep 2
+            timeout=$((timeout-2))
+        done
+        '''
+    }
+}
 
         stage('Valid Inference Test') {
             steps {
