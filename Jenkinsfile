@@ -4,7 +4,7 @@ pipeline {
     environment {
         IMAGE = "kj3748/lab6-model:latest"
         CONTAINER = "wine-test-container"
-        PORT = "8000"
+        PORT = "5000"
     }
 
     stages {
@@ -19,7 +19,7 @@ pipeline {
             steps {
                 sh '''
                 docker rm -f $CONTAINER || true
-                docker run -d -p $PORT:8000 --name $CONTAINER $IMAGE
+                docker run -d -p $PORT:5000 --name $CONTAINER $IMAGE
                 '''
             }
         }
@@ -46,11 +46,11 @@ pipeline {
                 sh '''
                 response=$(curl -s -X POST http://host.docker.internal:$PORT/predict \
                 -H "Content-Type: application/json" \
-                -d @test_valid.json)
+                -d @tests/valid_input.json)
 
                 echo "Valid Response: $response"
 
-                echo $response | jq '.wine_quality' > /dev/null || exit 1
+                echo $response | jq '.prediction' > /dev/null || exit 1
                 '''
             }
         }
@@ -61,7 +61,7 @@ pipeline {
                 status=$(curl -s -o /dev/null -w "%{http_code}" \
                 -X POST http://host.docker.internal:$PORT/predict \
                 -H "Content-Type: application/json" \
-                -d @test_invalid.json)
+                -d @tests/invalid_input.json)
 
                 if [ "$status" -eq 200 ]; then
                     echo "Invalid input should not return 200"
