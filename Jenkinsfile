@@ -27,15 +27,19 @@ pipeline {
         stage('Wait for API Readiness') {
             steps {
                 sh '''
+                echo "Waiting for API..."
                 timeout=30
-                until curl -s -o /dev/null -w "%{http_code}" http://host.docker.internal:$PORT/health | grep -q 200; do
-                    if [ $timeout -le- 0 ]; then
-                        echo "API did not start"
+
+                until curl -s -o /dev/null -w "%{http_code}" http://host.docker.internal:$PORT/health | grep -q 200
+                do
+                    if [ "$timeout" -le 0 ]; then
+                        echo "API did not start in time"
                         exit 1
                     fi
                     sleep 2
                     timeout=$((timeout-2))
                 done
+
                 echo "API is ready"
                 '''
             }
@@ -50,7 +54,11 @@ pipeline {
 
                 echo "Valid Response: $response"
 
-                echo $response | jq '.prediction' > /dev/null || exit 1
+                # Check that prediction field exists
+                echo "$response" | grep -q "prediction" || {
+                    echo "Prediction field missing"
+                    exit 1
+                }
                 '''
             }
         }
