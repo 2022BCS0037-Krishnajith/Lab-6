@@ -2,57 +2,82 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "kj3748/lab6-model"
+        IMAGE_NAME = "kj3748/lab6-model"
+        CONTAINER_NAME = "wine_container_test"
+        PORT = "8000"
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Pull Image') {
             steps {
-                checkout scm
+                sh 'docker pull $IMAGE_NAME'
             }
         }
 
-        stage('Setup Python Virtual Environment') {
+        stage('Run Container') {
             steps {
                 sh '''
-                python3 -m venv .venv
-                . .venv/bin/activate
-                pip install --break-system-packages -r requirements.txt
+                docker run -d -p 8000:8000 --name $CONTAINER_NAME $IMAGE_NAME
                 '''
             }
         }
 
-        stage('Train Model') {
+        stage('Wait for Service Readiness') {
             steps {
-                sh '''
-                . .venv/bin/activate
-                python scripts/train.py
-                '''
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh '''
-                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                    docker build -t $DOCKER_IMAGE:${BUILD_NUMBER} .
-                    docker tag $DOCKER_IMAGE:${BUILD_NUMBER} $DOCKER_IMAGE:latest
-                    '''
+                script {
+                    sleep(10)
                 }
             }
         }
 
-        stage('Push Docker Image') {
+        stage('Send Valid Inference Request') {
+            steps {
+                script {
+                    def response = sh(
+                        script: """
+                        curl -s -X POST http://localhost:8000/predict \
+                        -H "Content-Type: application/json" \
+                        -d @test_valid.json
+                        """,
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Valid Response: ${response}"
+
+                    if (!response.contains("wine_quality")) {
+                        error("Valid inference test failed!")
+                    }
+                }
+            }
+        }
+
+        stage('Send Invalid Request') {
+            steps {
+                script {
+                    def response = sh(
+                        script: """
+                        curl -s -X POST http://localhost:8000/predict \
+                        -H "Content-Type: application/json" \
+                        -d @test_invalid.json
+                        """,
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Invalid Response: ${response}"
+
+                    if (!response.contains("detail")) {
+                        error("Invalid input test failed!")
+                    }
+                }
+            }
+        }
+
+        stage('Stop Container') {
             steps {
                 sh '''
-                docker push $DOCKER_IMAGE:${BUILD_NUMBER}
-                docker push $DOCKER_IMAGE:latest
+                docker stop $CONTAINER_NAME
+                docker rm $CONTAINER_NAME
                 '''
             }
         }
