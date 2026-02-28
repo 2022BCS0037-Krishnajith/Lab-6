@@ -18,9 +18,10 @@ pipeline {
         stage('Run Container') {
             steps {
                 sh '''
-                docker rm -f $CONTAINER || true
-                docker network create jenkins-net || true
-                docker run -d --name $CONTAINER --network jenkins-net $IMAGE
+                    docker rm -f $CONTAINER || true
+                    docker network create jenkins-net || true
+                    docker network connect jenkins-net jenkins || true
+                    docker run -d --name $CONTAINER --network jenkins-net $IMAGE
                 '''
             }
         }
