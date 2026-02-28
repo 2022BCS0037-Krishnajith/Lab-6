@@ -5,6 +5,7 @@ pipeline {
         IMAGE = "kj3748/lab6-model:latest"
         CONTAINER = "wine-test-container"
         PORT = "8000"
+        HOST = "172.17.0.1"
     }
 
     stages {
@@ -32,7 +33,7 @@ pipeline {
 
                 while true
                 do
-                    STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://host.docker.internal:$PORT/health)
+                    STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://$HOST:$PORT/health)
 
                     if [ "$STATUS" = "200" ]; then
                         echo "API is ready"
@@ -55,7 +56,7 @@ pipeline {
         stage('Valid Inference Test') {
             steps {
                 sh '''
-                response=$(curl -s -X POST http://host.docker.internal:$PORT/predict \
+                response=$(curl -s -X POST http://$HOST:$PORT/predict \
                 -H "Content-Type: application/json" \
                 -d @tests/valid_input.json)
 
@@ -70,7 +71,7 @@ pipeline {
             steps {
                 sh '''
                 status=$(curl -s -o /dev/null -w "%{http_code}" \
-                -X POST http://host.docker.internal:$PORT/predict \
+                -X POST http://$HOST:$PORT/predict \
                 -H "Content-Type: application/json" \
                 -d @tests/invalid_input.json)
 
