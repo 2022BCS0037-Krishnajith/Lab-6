@@ -18,51 +18,50 @@ pipeline {
         stage('Run Container') {
             steps {
                 sh '''
-                    docker rm -f $CONTAINER || true
-                    docker network create jenkins-net || true
-                    docker network connect jenkins-net jenkins || true
-                    docker run -d --name $CONTAINER --network jenkins-net $IMAGE
+                docker rm -f $CONTAINER || true
+                docker run -d -p $PORT:8000 --name $CONTAINER $IMAGE
                 '''
             }
         }
 
         stage('Wait for API Readiness') {
-    steps {
-        sh '''
-        echo "Waiting for API..."
-        timeout=30
+            steps {
+                sh '''
+                echo "Waiting for API..."
+                timeout=30
 
-        while true
-        do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://wine-test-container:8000/health)
+                while true
+                do
+                    STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://host.docker.internal:$PORT/health)
 
-            if [ "$STATUS" = "200" ]; then
-                echo "API is ready"
-                break
-            fi
+                    if [ "$STATUS" = "200" ]; then
+                        echo "API is ready"
+                        break
+                    fi
 
-            if [ "$timeout" -le 0 ]; then
-                echo "API did not start"
-                exit 1
-            fi
+                    if [ "$timeout" -le 0 ]; then
+                        echo "API did not start"
+                        docker logs $CONTAINER
+                        exit 1
+                    fi
 
-            sleep 2
-            timeout=$((timeout-2))
-        done
-        '''
-    }
-}
+                    sleep 2
+                    timeout=$((timeout-2))
+                done
+                '''
+            }
+        }
 
         stage('Valid Inference Test') {
             steps {
                 sh '''
-                response=$(curl -s -X POST http://wine-test-container:8000/predict \
+                response=$(curl -s -X POST http://host.docker.internal:$PORT/predict \
                 -H "Content-Type: application/json" \
                 -d @tests/valid_input.json)
 
                 echo "Valid Response: $response"
 
-                echo $response | jq '.wine_quality' > /dev/null || exit 1
+                echo $response | jq '.prediction' > /dev/null || exit 1
                 '''
             }
         }
@@ -71,7 +70,7 @@ pipeline {
             steps {
                 sh '''
                 status=$(curl -s -o /dev/null -w "%{http_code}" \
-                -X POST http://wine-test-container:8000/predict \
+                -X POST http://host.docker.internal:$PORT/predict \
                 -H "Content-Type: application/json" \
                 -d @tests/invalid_input.json)
 
