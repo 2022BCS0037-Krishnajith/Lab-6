@@ -19,6 +19,8 @@ pipeline {
             steps {
                 sh '''
                 docker rm -f $CONTAINER || true
+                docker ps -q --filter "publish=$PORT" | xargs -r docker stop || true
+                docker ps -aq --filter "publish=$PORT" | xargs -r docker rm || true
                 docker run -d -p $PORT:8000 --name $CONTAINER $IMAGE
                 '''
             }
