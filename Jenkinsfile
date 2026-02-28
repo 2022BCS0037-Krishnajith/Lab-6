@@ -19,9 +19,8 @@ pipeline {
             steps {
                 sh '''
                 docker rm -f $CONTAINER || true
-                docker ps -q --filter "publish=$PORT" | xargs -r docker stop || true
-                docker ps -aq --filter "publish=$PORT" | xargs -r docker rm || true
-                docker run -d -p $PORT:8000 --name $CONTAINER $IMAGE
+                docker network create jenkins-net || true
+                docker run -d --name $CONTAINER --network jenkins-net $IMAGE
                 '''
             }
         }
@@ -34,7 +33,7 @@ pipeline {
 
         while true
         do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://host.docker.internal:$PORT/health)
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://host.docker.internal:8000/health)
 
             if [ "$STATUS" = "200" ]; then
                 echo "API is ready"
@@ -56,7 +55,7 @@ pipeline {
         stage('Valid Inference Test') {
             steps {
                 sh '''
-                response=$(curl -s -X POST http://host.docker.internal:$PORT/predict \
+                response=$(curl -s -X POST http://host.docker.internal:8000/predict \
                 -H "Content-Type: application/json" \
                 -d @tests/valid_input.json)
 
@@ -71,7 +70,7 @@ pipeline {
             steps {
                 sh '''
                 status=$(curl -s -o /dev/null -w "%{http_code}" \
-                -X POST http://host.docker.internal:$PORT/predict \
+                -X POST http://host.docker.internal:8000/predict \
                 -H "Content-Type: application/json" \
                 -d @tests/invalid_input.json)
 
