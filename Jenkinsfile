@@ -4,36 +4,23 @@ pipeline {
     environment {
         IMAGE = "kj3748/lab6-model:latest"
         CONTAINER = "wine-test-container"
-        NETWORK = "jenkins-net"
         PORT = "8000"
+        HOST = "172.17.0.1"
     }
 
     stages {
 
         stage('Pull Image') {
             steps {
-                sh '''
-                echo "Pulling Docker image..."
-                docker pull $IMAGE
-                '''
+                sh 'docker pull $IMAGE'
             }
         }
 
         stage('Run Container') {
             steps {
                 sh '''
-                echo "Starting container..."
-
                 docker rm -f $CONTAINER || true
-
-                docker network create $NETWORK || true
-
-                docker run -d \
-                    --name $CONTAINER \
-                    --network $NETWORK \
-                    $IMAGE
-
-                docker ps
+                docker run -d -p $PORT:8000 --name $CONTAINER $IMAGE
                 '''
             }
         }
@@ -41,13 +28,12 @@ pipeline {
         stage('Wait for API Readiness') {
             steps {
                 sh '''
-                echo "Waiting for API to become ready..."
-
+                echo "Waiting for API..."
                 timeout=30
 
                 while true
                 do
-                    STATUS=$(docker exec $CONTAINER curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/health)
+                    STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://$HOST:$PORT/health)
 
                     if [ "$STATUS" = "200" ]; then
                         echo "API is ready"
@@ -55,7 +41,7 @@ pipeline {
                     fi
 
                     if [ "$timeout" -le 0 ]; then
-                        echo "API failed to start"
+                        echo "API did not start"
                         docker logs $CONTAINER
                         exit 1
                     fi
@@ -70,22 +56,13 @@ pipeline {
         stage('Valid Inference Test') {
             steps {
                 sh '''
-                echo "Sending valid inference request..."
-
-                response=$(docker exec $CONTAINER curl -s -X POST http://localhost:$PORT/predict \
+                response=$(curl -s -X POST http://$HOST:$PORT/predict \
                 -H "Content-Type: application/json" \
                 -d @tests/valid_input.json)
 
-                echo "Response: $response"
+                echo "Valid Response: $response"
 
-                echo $response | jq '.prediction' > /dev/null
-
-                if [ $? -ne 0 ]; then
-                    echo "Prediction field missing"
-                    exit 1
-                fi
-
-                echo "Valid inference test passed"
+                echo $response | jq '.prediction' > /dev/null || exit 1
                 '''
             }
         }
@@ -93,17 +70,13 @@ pipeline {
         stage('Invalid Input Test') {
             steps {
                 sh '''
-                echo "Sending invalid inference request..."
-
-                status=$(docker exec $CONTAINER curl -s -o /dev/null -w "%{http_code}" \
-                -X POST http://localhost:$PORT/predict \
+                status=$(curl -s -o /dev/null -w "%{http_code}" \
+                -X POST http://$HOST:$PORT/predict \
                 -H "Content-Type: application/json" \
                 -d @tests/invalid_input.json)
 
-                echo "Status code: $status"
-
-                if [ "$status" = "200" ]; then
-                    echo "Invalid input test failed"
+                if [ "$status" -eq 200 ]; then
+                    echo "Invalid input should not return 200"
                     exit 1
                 fi
 
@@ -115,12 +88,8 @@ pipeline {
         stage('Stop Container') {
             steps {
                 sh '''
-                echo "Stopping container..."
-
                 docker stop $CONTAINER
                 docker rm $CONTAINER
-
-                echo "Container stopped and removed"
                 '''
             }
         }
@@ -128,17 +97,7 @@ pipeline {
 
     post {
         always {
-            sh '''
-            docker rm -f $CONTAINER || true
-            '''
-        }
-
-        success {
-            echo "Pipeline completed successfully"
-        }
-
-        failure {
-            echo "Pipeline failed"
+            sh 'docker rm -f $CONTAINER || true'
         }
     }
-}s
+}
