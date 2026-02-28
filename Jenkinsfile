@@ -5,17 +5,14 @@ pipeline {
         IMAGE = "kj3748/lab6-model:latest"
         CONTAINER = "wine-test-container"
         NETWORK = "jenkins-net"
-        PORT = "8000"
+        PORT = "5000"
     }
 
     stages {
 
         stage('Pull Image') {
             steps {
-                sh '''
-                echo "Pulling Docker image..."
-                docker pull $IMAGE
-                '''
+                sh 'docker pull $IMAGE'
             }
         }
 
@@ -31,14 +28,12 @@ pipeline {
         stage('Run Container') {
             steps {
                 sh '''
-                echo "Starting container..."
-
                 docker rm -f $CONTAINER || true
 
                 docker run -d \
-                    --name $CONTAINER \
-                    --network $NETWORK \
-                    $IMAGE
+                --name $CONTAINER \
+                --network $NETWORK \
+                $IMAGE
 
                 docker ps
                 '''
@@ -48,8 +43,6 @@ pipeline {
         stage('Wait for API Readiness') {
             steps {
                 sh '''
-                echo "Waiting for API..."
-
                 timeout=30
 
                 while true
@@ -62,7 +55,7 @@ pipeline {
                     fi
 
                     if [ "$timeout" -le 0 ]; then
-                        echo "API failed to start"
+                        echo "API failed"
                         docker logs $CONTAINER
                         exit 1
                     fi
@@ -74,52 +67,29 @@ pipeline {
             }
         }
 
-        stage('Valid Inference Test') {
+        stage('Valid Test') {
             steps {
                 sh '''
-                echo "Testing valid input..."
-
                 response=$(curl -s -X POST http://$CONTAINER:$PORT/predict \
                 -H "Content-Type: application/json" \
                 -d @tests/valid_input.json)
 
-                echo "Response: $response"
-
                 echo $response | jq '.prediction' > /dev/null
-
-                if [ $? -ne 0 ]; then
-                    echo "Prediction missing"
-                    exit 1
-                fi
                 '''
             }
         }
 
-        stage('Invalid Input Test') {
+        stage('Invalid Test') {
             steps {
                 sh '''
-                echo "Testing invalid input..."
-
                 status=$(curl -s -o /dev/null -w "%{http_code}" \
                 -X POST http://$CONTAINER:$PORT/predict \
                 -H "Content-Type: application/json" \
                 -d @tests/invalid_input.json)
 
-                echo "Status: $status"
-
                 if [ "$status" = "200" ]; then
-                    echo "Invalid input test failed"
                     exit 1
                 fi
-                '''
-            }
-        }
-
-        stage('Stop Container') {
-            steps {
-                sh '''
-                docker stop $CONTAINER
-                docker rm $CONTAINER
                 '''
             }
         }
