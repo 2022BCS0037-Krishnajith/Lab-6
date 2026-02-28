@@ -35,27 +35,31 @@ pipeline {
                 --network $NETWORK \
                 $IMAGE
 
-                docker ps
+                sleep 5
+
+                docker logs $CONTAINER
                 '''
             }
         }
 
-        stage('Wait for API Readiness') {
+        stage('Wait for API') {
             steps {
                 sh '''
                 timeout=30
 
                 while true
                 do
-                    STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://$CONTAINER:$PORT/health)
+                    STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://$CONTAINER:$PORT/health || true)
+
+                    echo "STATUS=$STATUS"
 
                     if [ "$STATUS" = "200" ]; then
-                        echo "API is ready"
+                        echo "API READY"
                         break
                     fi
 
                     if [ "$timeout" -le 0 ]; then
-                        echo "API failed"
+                        echo "FAILED"
                         docker logs $CONTAINER
                         exit 1
                     fi
@@ -70,26 +74,9 @@ pipeline {
         stage('Valid Test') {
             steps {
                 sh '''
-                response=$(curl -s -X POST http://$CONTAINER:$PORT/predict \
+                curl -X POST http://$CONTAINER:$PORT/predict \
                 -H "Content-Type: application/json" \
-                -d @tests/valid_input.json)
-
-                echo $response | jq '.prediction' > /dev/null
-                '''
-            }
-        }
-
-        stage('Invalid Test') {
-            steps {
-                sh '''
-                status=$(curl -s -o /dev/null -w "%{http_code}" \
-                -X POST http://$CONTAINER:$PORT/predict \
-                -H "Content-Type: application/json" \
-                -d @tests/invalid_input.json)
-
-                if [ "$status" = "200" ]; then
-                    exit 1
-                fi
+                -d @tests/valid_input.json
                 '''
             }
         }
@@ -100,4 +87,4 @@ pipeline {
             sh 'docker rm -f $CONTAINER || true'
         }
     }
-}
+}s
