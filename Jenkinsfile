@@ -4,7 +4,7 @@ pipeline {
     environment {
         IMAGE = "kj3748/lab6-model:latest"
         CONTAINER = "wine-test-container"
-        PORT = "5000"
+        PORT = "8000"
     }
 
     stages {
@@ -19,7 +19,7 @@ pipeline {
             steps {
                 sh '''
                 docker rm -f $CONTAINER || true
-                docker run -d -p $PORT:5000 --name $CONTAINER $IMAGE
+                docker run -d -p $PORT:8000 --name $CONTAINER $IMAGE
                 '''
             }
         }
