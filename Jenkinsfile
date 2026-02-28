@@ -33,7 +33,7 @@ pipeline {
 
         while true
         do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://host.docker.internal:8000/health)
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://wine-test-container:8000/health)
 
             if [ "$STATUS" = "200" ]; then
                 echo "API is ready"
@@ -55,7 +55,7 @@ pipeline {
         stage('Valid Inference Test') {
             steps {
                 sh '''
-                response=$(curl -s -X POST http://host.docker.internal:8000/predict \
+                response=$(curl -s -X POST http://wine-test-container:8000/predict \
                 -H "Content-Type: application/json" \
                 -d @tests/valid_input.json)
 
@@ -70,7 +70,7 @@ pipeline {
             steps {
                 sh '''
                 status=$(curl -s -o /dev/null -w "%{http_code}" \
-                -X POST http://host.docker.internal:8000/predict \
+                -X POST http://wine-test-container:8000/predict \
                 -H "Content-Type: application/json" \
                 -d @tests/invalid_input.json)
 
