@@ -32,7 +32,7 @@ pipeline {
 
         while true
         do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://$CONTAINER:$PORT/health)
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://host.docker.internal:$PORT/health)
 
             if [ "$STATUS" = "200" ]; then
                 echo "API is ready"
