@@ -4,23 +4,43 @@ pipeline {
     environment {
         IMAGE = "kj3748/lab6-model:latest"
         CONTAINER = "wine-test-container"
+        NETWORK = "jenkins-net"
         PORT = "8000"
-        HOST = "172.17.0.1"
     }
 
     stages {
 
         stage('Pull Image') {
             steps {
-                sh 'docker pull $IMAGE'
+                sh '''
+                echo "Pulling Docker image..."
+                docker pull $IMAGE
+                '''
+            }
+        }
+
+        stage('Create Network') {
+            steps {
+                sh '''
+                docker network create $NETWORK || true
+                docker network connect $NETWORK jenkins || true
+                '''
             }
         }
 
         stage('Run Container') {
             steps {
                 sh '''
+                echo "Starting container..."
+
                 docker rm -f $CONTAINER || true
-                docker run -d -p $PORT:8000 --name $CONTAINER $IMAGE
+
+                docker run -d \
+                    --name $CONTAINER \
+                    --network $NETWORK \
+                    $IMAGE
+
+                docker ps
                 '''
             }
         }
@@ -29,11 +49,12 @@ pipeline {
             steps {
                 sh '''
                 echo "Waiting for API..."
+
                 timeout=30
 
                 while true
                 do
-                    STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://$HOST:$PORT/health)
+                    STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://$CONTAINER:$PORT/health)
 
                     if [ "$STATUS" = "200" ]; then
                         echo "API is ready"
@@ -41,7 +62,7 @@ pipeline {
                     fi
 
                     if [ "$timeout" -le 0 ]; then
-                        echo "API did not start"
+                        echo "API failed to start"
                         docker logs $CONTAINER
                         exit 1
                     fi
@@ -56,13 +77,20 @@ pipeline {
         stage('Valid Inference Test') {
             steps {
                 sh '''
-                response=$(curl -s -X POST http://$HOST:$PORT/predict \
+                echo "Testing valid input..."
+
+                response=$(curl -s -X POST http://$CONTAINER:$PORT/predict \
                 -H "Content-Type: application/json" \
                 -d @tests/valid_input.json)
 
-                echo "Valid Response: $response"
+                echo "Response: $response"
 
-                echo $response | jq '.prediction' > /dev/null || exit 1
+                echo $response | jq '.prediction' > /dev/null
+
+                if [ $? -ne 0 ]; then
+                    echo "Prediction missing"
+                    exit 1
+                fi
                 '''
             }
         }
@@ -70,17 +98,19 @@ pipeline {
         stage('Invalid Input Test') {
             steps {
                 sh '''
+                echo "Testing invalid input..."
+
                 status=$(curl -s -o /dev/null -w "%{http_code}" \
-                -X POST http://$HOST:$PORT/predict \
+                -X POST http://$CONTAINER:$PORT/predict \
                 -H "Content-Type: application/json" \
                 -d @tests/invalid_input.json)
 
-                if [ "$status" -eq 200 ]; then
-                    echo "Invalid input should not return 200"
+                echo "Status: $status"
+
+                if [ "$status" = "200" ]; then
+                    echo "Invalid input test failed"
                     exit 1
                 fi
-
-                echo "Invalid input correctly rejected"
                 '''
             }
         }
